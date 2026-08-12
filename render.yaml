@@ -12,11 +12,10 @@ services:
       - key: PYTHON_VERSION
         value: 3.10.12
 
-  # Frontend Static Site (React / Vite) - Free Tier
+  # Frontend Static Site (React / Vite) - Always free on Render
   - type: web
     name: minierp-frontend
     runtime: static
-    plan: free
     buildCommand: cd erp/frontend && npm install && npm run build
     staticPublishPath: erp/frontend/dist
     routes:
