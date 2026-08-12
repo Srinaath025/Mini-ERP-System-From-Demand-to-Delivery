@@ -46,7 +46,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   // Configure axios defaults
-  axios.defaults.baseURL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  let rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+  if (rawApiUrl && !rawApiUrl.startsWith('http://') && !rawApiUrl.startsWith('https://')) {
+    rawApiUrl = `https://${rawApiUrl}`;
+  }
+  axios.defaults.baseURL = rawApiUrl;
   
   // Set default axios header
   if (token) {
