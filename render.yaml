@@ -1,8 +1,9 @@
 services:
-  # Backend Web Service (FastAPI)
+  # Backend Web Service (FastAPI) - Free Tier
   - type: web
     name: minierp-backend
     runtime: python
+    plan: free
     buildCommand: pip install -r erp/backend/requirements.txt
     startCommand: cd erp/backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
@@ -11,10 +12,11 @@ services:
       - key: PYTHON_VERSION
         value: 3.10.12
 
-  # Frontend Static Site (React / Vite)
+  # Frontend Static Site (React / Vite) - Free Tier
   - type: web
     name: minierp-frontend
     runtime: static
+    plan: free
     buildCommand: cd erp/frontend && npm install && npm run build
     staticPublishPath: erp/frontend/dist
     routes:
