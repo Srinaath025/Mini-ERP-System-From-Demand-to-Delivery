@@ -8,10 +8,6 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Public signup is disabled. Please ask an administrator to create users."
-    )
     # Check if username or email exists
     existing_username = db.query(models.User).filter(models.User.username == user_in.username).first()
     if existing_username:
@@ -26,9 +22,9 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
             detail="Email already registered"
         )
 
-    # Check if this is the first user. If so, make them approved Admin.
+    # Check if this is the first user. If so, default to Admin. Otherwise respect user_in.role.
     total_users = db.query(models.User).count()
-    is_admin = total_users == 0
+    assigned_role = "Admin" if total_users == 0 else (user_in.role if user_in.role in ["Admin", "User"] else "User")
 
     hashed_password = auth.get_password_hash(user_in.password)
     new_user = models.User(
@@ -36,8 +32,8 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
         username=user_in.username,
         email=user_in.email,
         password_hash=hashed_password,
-        role="Admin" if is_admin else user_in.role,
-        is_approved=True if is_admin else False
+        role=assigned_role,
+        is_approved=True
     )
 
     db.add(new_user)
