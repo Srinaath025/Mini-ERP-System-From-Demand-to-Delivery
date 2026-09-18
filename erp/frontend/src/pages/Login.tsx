@@ -39,14 +39,14 @@ export const Login: React.FC<LoginProps> = ({ initialMode = 'signin' }) => {
     setSuccess(null);
 
     if (!username.trim() || !password.trim()) {
-      setError('Please enter both Email Address and Password');
+      setError('Please enter both Email / Username and Password');
       return;
     }
 
     setSubmitting(true);
     try {
       const params = new URLSearchParams();
-      params.append('username', username);
+      params.append('username', username.trim());
       params.append('password', password);
 
       const response = await axios.post('/api/auth/login', params, {
@@ -55,9 +55,9 @@ export const Login: React.FC<LoginProps> = ({ initialMode = 'signin' }) => {
 
       const { access_token, user } = response.data;
 
-      // Mode check: admin mode requires Admin role
-      if (mode === 'admin' && user.role !== 'Admin') {
-        setError('Access denied: Selected account is not an Administrator');
+      // Mode check: admin mode requires Admin or Co-Admin role
+      if (mode === 'admin' && user.role !== 'Admin' && user.role !== 'Co-Admin') {
+        setError('Access denied: Selected account is not an Administrator or Co-Admin');
         setSubmitting(false);
         return;
       }
@@ -65,7 +65,7 @@ export const Login: React.FC<LoginProps> = ({ initialMode = 'signin' }) => {
       login(access_token, user);
       navigate('/dashboard');
     } catch (err: any) {
-      const msg = err.response?.data?.detail || 'Invalid Email Address or Password';
+      const msg = err.response?.data?.detail || 'Invalid Email Address / Username or Password';
       setError(msg);
     } finally {
       setSubmitting(false);
@@ -171,7 +171,7 @@ export const Login: React.FC<LoginProps> = ({ initialMode = 'signin' }) => {
           <span style={{ ...styles.modeBadge, background: isAdmin ? '#fef3c7' : '#ede9fe', color: isAdmin ? '#92400e' : '#5b21b6' }}>
             {isSignUp
               ? (isAdmin ? 'Sign Up for System Administrator' : 'Sign Up for System User')
-              : (isAdmin ? 'Login for System Administrator' : 'Login for System User')}
+              : (isAdmin ? 'Login for Administrator / Co-Admin' : 'Login for System User')}
           </span>
         </div>
 
@@ -196,14 +196,14 @@ export const Login: React.FC<LoginProps> = ({ initialMode = 'signin' }) => {
         {!isSignUp ? (
           <form onSubmit={handleSignIn} style={styles.form} autoComplete="off">
             <div style={styles.formGroup}>
-              <label style={styles.label}>Email Address</label>
+              <label style={styles.label}>Email Address or Username</label>
               <input
                 id="login-id"
-                type="email"
+                type="text"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 style={styles.input}
-                placeholder="Enter Email Address"
+                placeholder="Enter Email Address or Username"
                 autoComplete="off"
               />
             </div>

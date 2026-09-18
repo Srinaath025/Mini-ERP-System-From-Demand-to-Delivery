@@ -12,7 +12,7 @@ def verify_read(current_user: models.User = Depends(auth.PermissionChecker("manu
     return current_user
 
 def verify_write(current_user: models.User = Depends(verify_read)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Write operations are restricted to Admin users.")
     return current_user
 
@@ -29,7 +29,7 @@ def get_manufacturing_order(mo_number: str, db: Session = Depends(get_db), curre
 
 @router.post("", response_model=schemas.ManufacturingOrderResponse, status_code=status.HTTP_201_CREATED)
 def create_manufacturing_order(mo_in: schemas.ManufacturingOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
-    if mo_in.status in ["Confirmed", "In Progress", "Completed"] and current_user.role != "Admin":
+    if mo_in.status in ["Confirmed", "In Progress", "Completed"] and current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Confirming or completing manufacturing orders is restricted to Admin users.")
     mo_number = mo_in.mo_number
     if not mo_number or mo_number == "":
@@ -130,10 +130,17 @@ def create_manufacturing_order(mo_in: schemas.ManufacturingOrderCreate, db: Sess
     return mo
 
 @router.put("/{mo_number}", response_model=schemas.ManufacturingOrderResponse)
-def update_manufacturing_order(mo_number: str, mo_in: schemas.ManufacturingOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
+def update_manufacturing_order(mo_number: str, mo_in: schemas.ManufacturingOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
     mo = db.query(models.ManufacturingOrder).filter(models.ManufacturingOrder.mo_number == mo_number).first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    # Non-admin users can only edit Draft orders and cannot confirm or complete
+    if current_user.role not in ["Admin", "Co-Admin"]:
+        if mo.status != "Draft":
+            raise HTTPException(status_code=403, detail="Only Admin users can edit confirmed or completed manufacturing orders.")
+        if mo_in.status not in ["Draft", "Cancelled"]:
+            raise HTTPException(status_code=403, detail="Confirming or completing manufacturing orders is restricted to Admin users.")
 
     old_status = mo.status
     target_product = db.query(models.Product).filter(models.Product.sku == mo_in.product_sku).first()
@@ -241,12 +248,13 @@ def update_manufacturing_order(mo_number: str, mo_in: schemas.ManufacturingOrder
     return mo
 
 @router.delete("/{mo_number}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_manufacturing_order(mo_number: str, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
-    if current_user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Creation and deletion are restricted to Admin users.")
+def delete_manufacturing_order(mo_number: str, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
     mo = db.query(models.ManufacturingOrder).filter(models.ManufacturingOrder.mo_number == mo_number).first()
     if not mo:
         raise HTTPException(status_code=404, detail="Manufacturing Order not found")
+
+    if current_user.role not in ["Admin", "Co-Admin"] and mo.status != "Draft":
+        raise HTTPException(status_code=403, detail="Deleting confirmed or completed manufacturing orders is restricted to Admin users.")
 
     # If it was completed, revert the stock changes
     if mo.status == "Completed":

@@ -37,10 +37,16 @@ def create_user(
 
 
     # Validate role
-    if user_in.role not in ["Admin", "User"]:
+    if user_in.role not in ["Admin", "Co-Admin", "User"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid role. Role must be 'Admin' or 'User'."
+            detail="Invalid role. Role must be 'Admin', 'Co-Admin', or 'User'."
+        )
+
+    if user_in.role == "Admin" and current_user.role != "Admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only a Super Admin can create another Admin account."
         )
 
     hashed_password = auth.get_password_hash(user_in.password)
@@ -67,6 +73,9 @@ def approve_user(user_id: int, approval: schemas.UserApproval, db: Session = Dep
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot change your own approval status")
         
+    if user.role == "Admin" and current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only a Super Admin can modify an Admin account.")
+
     user.is_approved = approval.is_approved
     db.commit()
     db.refresh(user)
@@ -80,6 +89,15 @@ def update_user_role(user_id: int, role_update: schemas.UserUpdateRole, db: Sess
         
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot change your own role")
+
+    if role_update.role not in ["Admin", "Co-Admin", "User"]:
+        raise HTTPException(status_code=400, detail="Invalid role. Role must be 'Admin', 'Co-Admin', or 'User'.")
+
+    if user.role == "Admin" and current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only a Super Admin can modify an Admin account.")
+
+    if role_update.role == "Admin" and current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only a Super Admin can promote a user to Admin.")
         
     user.role = role_update.role
     db.commit()
@@ -94,6 +112,9 @@ def delete_user(user_id: int, db: Session = Depends(get_db), current_user: model
         
     if user.id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot delete yourself")
+
+    if user.role == "Admin" and current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only a Super Admin can delete an Admin user.")
         
     db.delete(user)
     db.commit()
@@ -109,6 +130,9 @@ def update_permissions(role: str, perm_in: schemas.RolePermissionBase, db: Sessi
     if role == "Admin":
         raise HTTPException(status_code=400, detail="Admin permissions cannot be modified")
         
+    if role == "Co-Admin" and current_user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only a Super Admin can modify Co-Admin permissions")
+
     perm = db.query(models.RolePermission).filter(models.RolePermission.role == role).first()
     if not perm:
         perm = models.RolePermission(role=role)

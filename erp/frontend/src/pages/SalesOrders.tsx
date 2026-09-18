@@ -55,7 +55,7 @@ export const SalesOrders: React.FC = () => {
     { product_sku: '', quantity: 1, unit_price: 0 }
   ]);
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Co-Admin';
   const isModalReadOnly = isEdit ? !isAdmin : false;
 
   const fetchData = async () => {
@@ -124,12 +124,7 @@ export const SalesOrders: React.FC = () => {
     const updated = [...items];
     
     if (field === 'quantity') {
-      const prod = products.find(p => p.sku === updated[index].product_sku);
       const val = parseInt(value) || 0;
-      const reorderLimit = prod?.reorder_point ?? 10;
-      if (prod && val > reorderLimit) {
-        alert(`Warning: Ordered quantity of ${val} exceeds the automated reorder point of ${reorderLimit} for product ${prod.name}!`);
-      }
       updated[index] = {
         ...updated[index],
         quantity: val

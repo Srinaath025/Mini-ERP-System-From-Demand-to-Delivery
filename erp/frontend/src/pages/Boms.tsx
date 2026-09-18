@@ -59,8 +59,8 @@ export const Boms: React.FC = () => {
     { operation_name: '', duration_mins: 15, work_center: '' }
   ]);
 
-  const isReadOnly = user?.role !== 'Admin';
-  const canCreateDelete = user?.role === 'Admin';
+  const isReadOnly = user?.role !== 'Admin' && user?.role !== 'Co-Admin';
+  const canCreateDelete = user?.role === 'Admin' || user?.role === 'Co-Admin';
 
   const fetchData = async () => {
     setLoading(true);

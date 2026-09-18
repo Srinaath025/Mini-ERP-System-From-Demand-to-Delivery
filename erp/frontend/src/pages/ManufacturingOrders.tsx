@@ -52,7 +52,7 @@ export const ManufacturingOrders: React.FC = () => {
     { component_sku: '', required_qty: 1, unit: 'units' }
   ]);
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Co-Admin';
   const isModalReadOnly = isEdit ? !isAdmin : false;
 
   const fetchData = async () => {
@@ -118,10 +118,11 @@ export const ManufacturingOrders: React.FC = () => {
         try {
           const res = await axios.get(`/api/bom/product/${productSku}`);
           if (res.data && res.data.components && res.data.components.length > 0) {
+            const bomBatchQty = parseFloat(res.data.quantity) || 1;
             const newComps = res.data.components.map((c: any) => ({
               component_sku: c.component_sku,
-              required_qty: parseFloat(c.quantity) * quantity,
-              unit: 'units',
+              required_qty: (parseFloat(c.quantity) / bomBatchQty) * quantity,
+              unit: res.data.unit || 'units',
               status: 'Pending'
             }));
             setComponents(newComps);
@@ -137,12 +138,7 @@ export const ManufacturingOrders: React.FC = () => {
   const handleComponentChange = (index: number, field: keyof MOComponent, value: any) => {
     const updated = [...components];
     if (field === 'required_qty') {
-      const prod = products.find(p => p.sku === updated[index].component_sku);
       const val = parseFloat(value) || 0;
-      const reorderLimit = prod?.reorder_point ?? 10;
-      if (prod && val > reorderLimit) {
-        alert(`Warning: Component quantity of ${val} exceeds the automated reorder point of ${reorderLimit} for product ${prod.name}!`);
-      }
       updated[index] = { ...updated[index], required_qty: val };
     } else {
       updated[index] = { ...updated[index], [field]: value };

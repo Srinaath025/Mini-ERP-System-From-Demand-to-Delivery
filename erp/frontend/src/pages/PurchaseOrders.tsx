@@ -7,6 +7,7 @@ interface Product {
   sku: string;
   name: string;
   price: number;
+  cost_price?: number;
   reorder_point?: number;
 }
 
@@ -54,7 +55,7 @@ export const PurchaseOrders: React.FC = () => {
     { product_sku: '', quantity: 1, unit_price: 0 }
   ]);
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Co-Admin';
   const isModalReadOnly = isEdit ? !isAdmin : false;
 
   const fetchData = async () => {
@@ -122,23 +123,18 @@ export const PurchaseOrders: React.FC = () => {
     const updated = [...items];
     
     if (field === 'quantity') {
-      const prod = products.find(p => p.sku === updated[index].product_sku);
       const val = parseInt(value) || 0;
-      const reorderLimit = prod?.reorder_point ?? 10;
-      if (prod && val > reorderLimit) {
-        alert(`Warning: Ordered quantity of ${val} exceeds the automated reorder point of ${reorderLimit} for product ${prod.name}!`);
-      }
       updated[index] = {
         ...updated[index],
         quantity: val
       };
     } else if (field === 'product_sku') {
       const prod = products.find(p => p.sku === value);
+      const defaultPrice = prod ? ((prod.cost_price !== undefined && prod.cost_price !== null && prod.cost_price > 0) ? prod.cost_price : prod.price) : 0;
       updated[index] = {
         ...updated[index],
         product_sku: value,
-        // For purchase, we might buy at standard catalogue price or cheaper
-        unit_price: prod ? prod.price : 0
+        unit_price: defaultPrice
       };
     } else {
       updated[index] = {

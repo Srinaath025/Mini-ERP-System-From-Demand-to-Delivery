@@ -12,7 +12,7 @@ def verify_read(current_user: models.User = Depends(auth.PermissionChecker("purc
     return current_user
 
 def verify_write(current_user: models.User = Depends(verify_read)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Write operations are restricted to Admin users.")
     return current_user
 
@@ -29,7 +29,7 @@ def get_purchase_order(po_number: str, db: Session = Depends(get_db), current_us
 
 @router.post("", response_model=schemas.PurchaseOrderResponse, status_code=status.HTTP_201_CREATED)
 def create_purchase_order(po_in: schemas.PurchaseOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
-    if po_in.status in ["Confirmed", "Received"] and current_user.role != "Admin":
+    if po_in.status in ["Confirmed", "Received"] and current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Approving purchase orders is restricted to Admin users.")
     po_number = po_in.po_number
     if not po_number or po_number == "":
@@ -108,10 +108,17 @@ def create_purchase_order(po_in: schemas.PurchaseOrderCreate, db: Session = Depe
     return po
 
 @router.put("/{po_number}", response_model=schemas.PurchaseOrderResponse)
-def update_purchase_order(po_number: str, po_in: schemas.PurchaseOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
+def update_purchase_order(po_number: str, po_in: schemas.PurchaseOrderCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
     po = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_number).first()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
+
+    # Non-admin users can only edit Draft orders and cannot mark as Confirmed or Received
+    if current_user.role not in ["Admin", "Co-Admin"]:
+        if po.status != "Draft":
+            raise HTTPException(status_code=403, detail="Only Admin users can edit confirmed or received purchase orders.")
+        if po_in.status not in ["Draft", "Cancelled"]:
+            raise HTTPException(status_code=403, detail="Approving or receiving purchase orders is restricted to Admin users.")
 
     old_status = po.status
     old_items = [(item.product_sku, item.quantity) for item in po.items]
@@ -195,12 +202,13 @@ def update_purchase_order(po_number: str, po_in: schemas.PurchaseOrderCreate, db
     return po
 
 @router.delete("/{po_number}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_purchase_order(po_number: str, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
-    if current_user.role != "Admin":
-        raise HTTPException(status_code=403, detail="Creation and deletion are restricted to Admin users.")
+def delete_purchase_order(po_number: str, db: Session = Depends(get_db), current_user: models.User = Depends(verify_read)):
     po = db.query(models.PurchaseOrder).filter(models.PurchaseOrder.po_number == po_number).first()
     if not po:
         raise HTTPException(status_code=404, detail="Purchase Order not found")
+
+    if current_user.role not in ["Admin", "Co-Admin"] and po.status != "Draft":
+        raise HTTPException(status_code=403, detail="Deleting confirmed or received purchase orders is restricted to Admin users.")
 
     if po.status == "Received":
         for item in po.items:

@@ -4,18 +4,27 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from .. import models, schemas, auth
 
+from sqlalchemy import func
+
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 @router.post("/register", response_model=schemas.UserResponse)
 def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
-    # Check if username or email exists
-    existing_username = db.query(models.User).filter(models.User.username == user_in.username).first()
+    clean_username = user_in.username.strip()
+    clean_email = user_in.email.strip()
+
+    # Check if username or email exists (case-insensitive)
+    existing_username = db.query(models.User).filter(
+        func.lower(models.User.username) == clean_username.lower()
+    ).first()
     if existing_username:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Username already exists"
         )
-    existing_email = db.query(models.User).filter(models.User.email == user_in.email).first()
+    existing_email = db.query(models.User).filter(
+        func.lower(models.User.email) == clean_email.lower()
+    ).first()
     if existing_email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -24,13 +33,13 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
     # Check if this is the first user. If so, default to Admin. Otherwise respect user_in.role.
     total_users = db.query(models.User).count()
-    assigned_role = "Admin" if total_users == 0 else (user_in.role if user_in.role in ["Admin", "User"] else "User")
+    assigned_role = "Admin" if total_users == 0 else (user_in.role if user_in.role in ["Admin", "Co-Admin", "User"] else "User")
 
     hashed_password = auth.get_password_hash(user_in.password)
     new_user = models.User(
-        name=user_in.name,
-        username=user_in.username,
-        email=user_in.email,
+        name=user_in.name.strip(),
+        username=clean_username,
+        email=clean_email,
         password_hash=hashed_password,
         role=assigned_role,
         is_approved=True
@@ -43,9 +52,13 @@ def register(user_in: schemas.UserCreate, db: Session = Depends(get_db)):
 
 @router.post("/login", response_model=schemas.Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # Query the user database using either the username or the email address
+    # Query user case-insensitively using username or email or login prefix
+    input_str = form_data.username.strip().lower()
     user = db.query(models.User).filter(
-        (models.User.username == form_data.username) | (models.User.email == form_data.username)
+        (func.lower(models.User.username) == input_str) |
+        (func.lower(models.User.email) == input_str) |
+        (func.lower(models.User.username) == f"{input_str}@example.com") |
+        (func.lower(models.User.email) == f"{input_str}@example.com")
     ).first()
     if not user or not auth.verify_password(form_data.password, user.password_hash):
         raise HTTPException(

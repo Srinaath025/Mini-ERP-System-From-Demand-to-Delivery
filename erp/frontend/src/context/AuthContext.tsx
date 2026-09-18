@@ -112,7 +112,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!permissions) return false;
     
     const userPerm = permissions.find(p => p.role === user.role);
-    if (!userPerm) return false;
+    if (!userPerm) {
+      if (user.role === 'Co-Admin') return true;
+      return false;
+    }
     return !!userPerm[permissionField];
   };
 

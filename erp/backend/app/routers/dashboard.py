@@ -45,7 +45,7 @@ def get_dashboard_stats(
 
     # ── Manufacturing ──────────────────────────────────────────────────────
     mo_all_q = db.query(models.ManufacturingOrder)
-    mfg_statuses = ["Draft", "Confirmed", "In Progress", "To Close", "Done", "Cancelled"]
+    mfg_statuses = ["Draft", "Confirmed", "In Progress", "Completed", "To Close", "Done", "Cancelled"]
     mfg_all = {s: mo_all_q.filter(models.ManufacturingOrder.status == s).count() for s in mfg_statuses}
 
     return {

@@ -55,9 +55,6 @@ export const Products: React.FC = () => {
     setProcurementStrategy(strategy);
     if (strategy === 'MTS') {
       setProcureOnDemand(false);
-      setProcurementType('Vendor');
-      setVendor('');
-      setBomId('');
     } else {
       setProcureOnDemand(true);
     }
@@ -65,14 +62,9 @@ export const Products: React.FC = () => {
 
   const handleProcurementTypeChange = (type: string) => {
     setProcurementType(type);
-    if (type === 'Vendor') {
-      setBomId('');
-    } else if (type === 'BOM') {
-      setVendor('');
-    }
   };
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = user?.role === 'Admin' || user?.role === 'Co-Admin';
   const isModalReadOnly = isEdit ? !isAdmin : false;
 
   const fetchProducts = async () => {
@@ -459,9 +451,87 @@ export const Products: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Stock Levels */}
+                <div className="form-row">
+                  <div className="form-group">
+                    <label htmlFor="modal-stock">Current Stock Level</label>
+                    <input
+                      id="modal-stock"
+                      type="number"
+                      min="0"
+                      required
+                      value={stockLevel}
+                      onChange={(e) => setStockLevel(parseInt(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+
+                  <div className="form-group">
+                    <label htmlFor="modal-reorder">Minimum Stock Level (Reorder Point)</label>
+                    <input
+                      id="modal-reorder"
+                      type="number"
+                      min="0"
+                      required
+                      value={reorderPoint}
+                      onChange={(e) => setReorderPoint(parseInt(e.target.value) || 0)}
+                      placeholder="10"
+                    />
+                  </div>
+                </div>
+
+                {/* Procurement Source */}
+                <div className="form-row" style={{ alignItems: 'center' }}>
+                  <div className="form-group" style={{ margin: 0, flex: 1 }}>
+                    <label htmlFor="modal-procurement-type">Procurement Source</label>
+                    <select
+                      id="modal-procurement-type"
+                      required
+                      value={procurementType}
+                      onChange={(e) => handleProcurementTypeChange(e.target.value)}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="Vendor">Purchase (from Supplier)</option>
+                      <option value="BOM">Manufacturing (In-House Assembly)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {procurementType === 'Vendor' && (
+                  <div className="form-group">
+                    <label htmlFor="modal-vendor">Vendor / Supplier</label>
+                    <input
+                      id="modal-vendor"
+                      type="text"
+                      value={vendor}
+                      onChange={(e) => setVendor(e.target.value)}
+                      placeholder="e.g. Crucial Distribution, UrbanWood"
+                    />
+                  </div>
+                )}
+
+                {procurementType === 'BOM' && (
+                  <div className="form-group">
+                    <label htmlFor="modal-bom">Bill of Materials (BoM Recipe)</label>
+                    <select
+                      id="modal-bom"
+                      value={bomId}
+                      onChange={(e) => setBomId(parseInt(e.target.value) || '')}
+                      style={{ width: '100%' }}
+                    >
+                      <option value="">-- Choose BOM --</option>
+                      {boms.map(b => (
+                        <option key={b.id} value={b.id}>
+                          {b.name} ({b.product_sku})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
                 {/* Procurement Strategy Radio Buttons */}
                 <div className="form-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
-                  <label style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--primary)' }}>Procurement Strategy</label>
+                  <label style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--primary)' }}>Procurement Policy</label>
                   <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.25rem' }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 500, cursor: 'pointer' }}>
                       <input
@@ -470,7 +540,7 @@ export const Products: React.FC = () => {
                         checked={procurementStrategy === 'MTS'}
                         onChange={() => handleStrategyChange('MTS')}
                       />
-                      Make to Stock (MTS)
+                      Make to Stock (MTS) — Keep on shelf
                     </label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 500, cursor: 'pointer' }}>
                       <input
@@ -479,107 +549,10 @@ export const Products: React.FC = () => {
                         checked={procurementStrategy === 'MTO'}
                         onChange={() => handleStrategyChange('MTO')}
                       />
-                      Make to Order (MTO)
+                      Make to Order (MTO) — Replenish on confirmed demand
                     </label>
                   </div>
                 </div>
-
-                {/* MTS Specific Fields */}
-                {procurementStrategy === 'MTS' && (
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label htmlFor="modal-stock">Current Stock Level</label>
-                      <input
-                        id="modal-stock"
-                        type="number"
-                        min="0"
-                        required
-                        value={stockLevel}
-                        onChange={(e) => setStockLevel(parseInt(e.target.value) || 0)}
-                        placeholder="0"
-                      />
-                    </div>
-
-                    <div className="form-group">
-                      <label htmlFor="modal-reorder">Minimum Stock Level</label>
-                      <input
-                        id="modal-reorder"
-                        type="number"
-                        min="0"
-                        required
-                        value={reorderPoint}
-                        onChange={(e) => setReorderPoint(parseInt(e.target.value) || 0)}
-                        placeholder="10"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* MTO Specific Fields */}
-                {procurementStrategy === 'MTO' && (
-                  <>
-                    <div className="form-row" style={{ alignItems: 'center' }}>
-                      <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                        <input
-                          id="modal-mto"
-                          type="checkbox"
-                          checked={procureOnDemand}
-                          onChange={(e) => setProcureOnDemand(e.target.checked)}
-                          style={{ width: 'auto', cursor: 'pointer' }}
-                        />
-                        <label htmlFor="modal-mto" style={{ cursor: 'pointer', margin: 0 }}>Procure on Demand</label>
-                      </div>
-
-                      <div className="form-group" style={{ margin: 0, flex: 1 }}>
-                        <label htmlFor="modal-procurement-type">Procurement Type</label>
-                        <select
-                          id="modal-procurement-type"
-                          required
-                          value={procurementType}
-                          onChange={(e) => handleProcurementTypeChange(e.target.value)}
-                          style={{ width: '100%' }}
-                        >
-                          <option value="Vendor">Purchase</option>
-                          <option value="BOM">Manufacturing</option>
-                        </select>
-                      </div>
-                    </div>
-
-                    {procurementType === 'Vendor' && (
-                      <div className="form-group">
-                        <label htmlFor="modal-vendor">Vendor</label>
-                        <input
-                          id="modal-vendor"
-                          type="text"
-                          required
-                          value={vendor}
-                          onChange={(e) => setVendor(e.target.value)}
-                          placeholder="e.g. Crucial Distribution"
-                        />
-                      </div>
-                    )}
-
-                    {procurementType === 'BOM' && (
-                      <div className="form-group">
-                        <label htmlFor="modal-bom">Bill of Materials (BoM)</label>
-                        <select
-                          id="modal-bom"
-                          required
-                          value={bomId}
-                          onChange={(e) => setBomId(parseInt(e.target.value) || '')}
-                          style={{ width: '100%' }}
-                        >
-                          <option value="">-- Choose BOM --</option>
-                          {boms.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.name} ({b.product_sku})
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                  </>
-                )}
 
                 <div className="form-group">
                   <label htmlFor="modal-desc">Description</label>

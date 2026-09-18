@@ -71,6 +71,8 @@ class PermissionChecker:
             
         permission = db.query(models.RolePermission).filter(models.RolePermission.role == current_user.role).first()
         if not permission:
+            if current_user.role == "Co-Admin":
+                return current_user
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="No permissions defined for your role."

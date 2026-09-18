@@ -42,7 +42,7 @@ def verify_read(current_user: models.User = Depends(auth.PermissionChecker("prod
 # For this ERP, anyone with product permission can edit, but Viewer can only read.
 # Let's check role to enforce that Viewer role is read-only.
 def verify_write(current_user: models.User = Depends(verify_read)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Write operations are restricted to Admin users."
@@ -64,29 +64,29 @@ def validate_and_sanitize_product(data: dict, bom_id: Optional[int], db: Session
 
     if strategy == "MTS":
         data["procure_on_demand"] = False
-        data["procurement_type"] = None
-        data["vendor"] = None
-        bom_id = None
     elif strategy == "MTO":
         data["procure_on_demand"] = True
-        if not proc_type:
-            raise HTTPException(status_code=400, detail="Procurement Type is required for MTO strategy.")
-        
-        if proc_type in ["Purchase", "Vendor"]:
-            if not data.get("vendor"):
-                raise HTTPException(status_code=400, detail="Vendor is required for Purchase procurement.")
-            bom_id = None
-        elif proc_type in ["Manufacturing", "BOM"]:
-            if not bom_id or bom_id == 0:
-                raise HTTPException(status_code=400, detail="Bill of Materials (BoM) is required for Manufacturing procurement.")
-            # Verify BoM exists
+
+    # Validate procurement source
+    if proc_type in ["Purchase", "Vendor"]:
+        data["procurement_type"] = "Vendor"
+        if strategy == "MTO" and not data.get("vendor"):
+            raise HTTPException(status_code=400, detail="Vendor is required for Purchase procurement under MTO.")
+        bom_id = None
+    elif proc_type in ["Manufacturing", "BOM"]:
+        data["procurement_type"] = "BOM"
+        if strategy == "MTO" and (not bom_id or bom_id == 0):
+            raise HTTPException(status_code=400, detail="Bill of Materials (BoM) is required for Manufacturing procurement under MTO.")
+        if bom_id and bom_id != 0:
             bom_exists = db.query(models.BOM).filter(models.BOM.id == bom_id).first()
             if not bom_exists:
                 raise HTTPException(status_code=400, detail="The selected BoM does not exist.")
-            data["vendor"] = None
-        else:
-            raise HTTPException(status_code=400, detail="Invalid Procurement Type.")
-            
+        data["vendor"] = None
+    else:
+        # Default fallback
+        if not data.get("procurement_type"):
+            data["procurement_type"] = "Vendor"
+
     return data, bom_id
 
 @router.get("", response_model=List[schemas.ProductResponse])
@@ -164,19 +164,12 @@ def update_product(sku: str, product_in: schemas.ProductCreate, db: Session = De
     for field, value in data.items():
         setattr(product, field, value)
         
-    # Update BOM association
+    # Update BOM association if specified
     current_bom = db.query(models.BOM).filter(models.BOM.product_sku == sku).first()
     if bom_id is not None and bom_id != 0:
-        if current_bom and current_bom.id != bom_id:
-            db.delete(current_bom)
-            db.flush()
         selected_bom = db.query(models.BOM).filter(models.BOM.id == bom_id).first()
         if selected_bom:
             selected_bom.product_sku = sku
-    else:
-        if current_bom:
-            db.delete(current_bom)
-
         
     # --- Audit log updates ---
     # Match the module context (Purchase for components/managers, Sales for finished items)
@@ -235,9 +228,38 @@ def update_product(sku: str, product_in: schemas.ProductCreate, db: Session = De
 
 @router.delete("/{sku}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(sku: str, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
+    if current_user.role not in ["Admin", "Co-Admin"]:
+        raise HTTPException(status_code=403, detail="Deleting products is restricted to Admin users.")
+
     product = db.query(models.Product).filter(models.Product.sku == sku).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    # Check for active references before deleting to prevent DB Foreign Key integrity crash
+    sales_ref = db.query(models.SalesOrderItem).filter(models.SalesOrderItem.product_sku == sku).first()
+    if sales_ref:
+        raise HTTPException(status_code=400, detail=f"Cannot delete product '{sku}': referenced in Sales Order '{sales_ref.so_number}'.")
+
+    purch_ref = db.query(models.PurchaseOrderItem).filter(models.PurchaseOrderItem.product_sku == sku).first()
+    if purch_ref:
+        raise HTTPException(status_code=400, detail=f"Cannot delete product '{sku}': referenced in Purchase Order '{purch_ref.po_number}'.")
+
+    mo_ref = db.query(models.ManufacturingOrder).filter(models.ManufacturingOrder.product_sku == sku).first()
+    if mo_ref:
+        raise HTTPException(status_code=400, detail=f"Cannot delete product '{sku}': referenced in Manufacturing Order '{mo_ref.mo_number}'.")
+
+    mo_comp_ref = db.query(models.MOComponent).filter(models.MOComponent.component_sku == sku).first()
+    if mo_comp_ref:
+        raise HTTPException(status_code=400, detail=f"Cannot delete product '{sku}': referenced as component in Manufacturing Order '{mo_comp_ref.mo_number}'.")
+
+    bom_comp_ref = db.query(models.BOMComponent).filter(models.BOMComponent.component_sku == sku).first()
+    if bom_comp_ref:
+        raise HTTPException(status_code=400, detail=f"Cannot delete product '{sku}': referenced in a Bill of Materials recipe.")
+
+    # Delete any linked BOM where this product is the output target
+    linked_boms = db.query(models.BOM).filter(models.BOM.product_sku == sku).all()
+    for b in linked_boms:
+        db.delete(b)
         
     # --- Audit log deletion ---
     # Log that the product has been deleted under the appropriate module context

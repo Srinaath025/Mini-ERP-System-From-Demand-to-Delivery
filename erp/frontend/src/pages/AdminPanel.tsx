@@ -161,6 +161,10 @@ export const AdminPanel: React.FC = () => {
 
   const handlePermissionToggle = async (role: string, field: keyof Permission) => {
     if (role === 'Admin') return; // Admin permissions cannot be modified
+    if (role === 'Co-Admin' && currentUser?.role !== 'Admin') {
+      alert('Only a Super Admin can modify Co-Admin permissions.');
+      return;
+    }
     setSavingPerm(role);
 
     // Find local permission object
@@ -249,12 +253,12 @@ export const AdminPanel: React.FC = () => {
                       <td>
                         <select 
                           value={u.role} 
-                          disabled={u.id === currentUser?.id}
+                          disabled={u.id === currentUser?.id || (currentUser?.role === 'Co-Admin' && u.role === 'Admin')}
                           onChange={(e) => handleRoleChange(u.id, e.target.value)}
                           style={{ padding: '0.35rem 0.5rem', borderRadius: 'var(--border-radius-sm)', border: '1px solid var(--border-color)', fontSize: '0.85rem' }}
                         >
-                           {/* Only two roles: Admin and User are permitted */}
                            <option value="Admin">Admin</option>
+                           <option value="Co-Admin">Co-Admin</option>
                            <option value="User">User</option>
                         </select>
                       </td>
@@ -267,7 +271,7 @@ export const AdminPanel: React.FC = () => {
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                           <button
                             onClick={() => handleApprove(u.id, u.is_approved)}
-                            disabled={u.id === currentUser?.id}
+                            disabled={u.id === currentUser?.id || (currentUser?.role === 'Co-Admin' && u.role === 'Admin')}
                             className={`btn ${u.is_approved ? 'btn-secondary' : 'btn-success'}`}
                             style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.25rem' }}
                             title={u.is_approved ? 'Revoke Approval' : 'Approve User'}
@@ -277,7 +281,7 @@ export const AdminPanel: React.FC = () => {
                           </button>
                           <button
                             onClick={() => handleDeleteUser(u.id)}
-                            disabled={u.id === currentUser?.id}
+                            disabled={u.id === currentUser?.id || (currentUser?.role === 'Co-Admin' && u.role === 'Admin')}
                             className="btn btn-danger"
                             style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}
                           >
@@ -329,7 +333,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.admin_panel} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'admin_panel')}
                         />
                       </td>
@@ -339,7 +343,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.sales_order} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'sales_order')}
                         />
                       </td>
@@ -349,7 +353,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.purchase_order} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'purchase_order')}
                         />
                       </td>
@@ -359,7 +363,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.manufacturing_order} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'manufacturing_order')}
                         />
                       </td>
@@ -369,7 +373,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.products} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'products')}
                         />
                       </td>
@@ -379,7 +383,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.accounts} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'accounts')}
                         />
                       </td>
@@ -389,7 +393,7 @@ export const AdminPanel: React.FC = () => {
                           type="checkbox" 
                           className="permission-checkbox"
                           checked={p.settings} 
-                          disabled={p.role === 'Admin'}
+                          disabled={p.role === 'Admin' || (p.role === 'Co-Admin' && currentUser?.role !== 'Admin')}
                           onChange={() => handlePermissionToggle(p.role, 'settings')}
                         />
                       </td>
@@ -487,7 +491,8 @@ export const AdminPanel: React.FC = () => {
                   style={{ width: '100%' }}
                 >
                   <option value="User">User (Standard Access)</option>
-                  <option value="Admin">Admin (Full Access)</option>
+                  <option value="Co-Admin">Co-Admin (Administrative Access)</option>
+                  {currentUser?.role === 'Admin' && <option value="Admin">Admin (Full Access)</option>}
                 </select>
               </div>
 

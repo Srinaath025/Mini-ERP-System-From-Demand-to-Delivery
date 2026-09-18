@@ -85,7 +85,8 @@ export const Navbar: React.FC = () => {
 
   const getBadgeClass = (role: string) => {
     switch (role) {
-      case 'Admin': return 'badge-admin';
+      case 'Admin':
+      case 'Co-Admin': return 'badge-admin';
       case 'Sales Manager': return 'badge-sales';
       case 'Purchase Manager': return 'badge-purchase';
       case 'Production Manager': return 'badge-production';

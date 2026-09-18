@@ -76,8 +76,8 @@ def seed_permissions():
     db = SessionLocal()
     try:
         # Check if permissions exist
-        # Clean up legacy roles and ensure only Admin and User exist
-        db.query(models.RolePermission).filter(models.RolePermission.role.notin_(["Admin", "User"])).delete(synchronize_session=False)
+        # Clean up legacy roles and ensure only Admin, Co-Admin and User exist
+        db.query(models.RolePermission).filter(models.RolePermission.role.notin_(["Admin", "Co-Admin", "User"])).delete(synchronize_session=False)
         
         # Seed or update Admin role permissions (access to everything)
         admin_perm = db.query(models.RolePermission).filter(models.RolePermission.role == "Admin").first()
@@ -91,6 +91,19 @@ def seed_permissions():
         admin_perm.products = True
         admin_perm.accounts = True
         admin_perm.settings = True
+
+        # Seed or ensure Co-Admin role permissions (administrative access by default, customizable in matrix)
+        coadmin_perm = db.query(models.RolePermission).filter(models.RolePermission.role == "Co-Admin").first()
+        if not coadmin_perm:
+            coadmin_perm = models.RolePermission(role="Co-Admin")
+            db.add(coadmin_perm)
+            coadmin_perm.admin_panel = True
+            coadmin_perm.sales_order = True
+            coadmin_perm.purchase_order = True
+            coadmin_perm.manufacturing_order = True
+            coadmin_perm.products = True
+            coadmin_perm.accounts = True
+            coadmin_perm.settings = True
 
         # Seed or update User role permissions (access to all modules except Admin Panel / settings)
         user_perm = db.query(models.RolePermission).filter(models.RolePermission.role == "User").first()
@@ -106,7 +119,7 @@ def seed_permissions():
         user_perm.settings = False
         
         db.commit()
-        print("Successfully synchronized role permissions (Admin and User only).")
+        print("Successfully synchronized role permissions (Admin, Co-Admin, and User).")
         seed_demo_data(db)
         print("Successfully synchronized demo data.")
 

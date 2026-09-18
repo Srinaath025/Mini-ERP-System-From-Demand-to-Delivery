@@ -11,7 +11,7 @@ def verify_read(current_user: models.User = Depends(auth.PermissionChecker("manu
     return current_user
 
 def verify_write(current_user: models.User = Depends(verify_read)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Write operations are restricted to Admin users.")
     return current_user
 
@@ -35,7 +35,7 @@ def get_bom(id: int, db: Session = Depends(get_db), current_user: models.User = 
 
 @router.post("", response_model=schemas.BOMResponse, status_code=status.HTTP_201_CREATED)
 def create_bom(bom_in: schemas.BOMCreate, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Creation and deletion are restricted to Admin users.")
     # Check if a BOM already exists for this product
     existing = db.query(models.BOM).filter(models.BOM.product_sku == bom_in.product_sku).first()
@@ -102,6 +102,12 @@ def update_bom(id: int, bom_in: schemas.BOMCreate, db: Session = Depends(get_db)
     if not bom:
         raise HTTPException(status_code=404, detail="BOM not found")
 
+    # Check if a BOM already exists for the newly targeted product
+    if bom_in.product_sku != bom.product_sku:
+        existing = db.query(models.BOM).filter(models.BOM.product_sku == bom_in.product_sku).first()
+        if existing:
+            raise HTTPException(status_code=400, detail=f"BOM already exists for product {bom_in.product_sku}")
+
     # Validate target product exists
     target_product = db.query(models.Product).filter(models.Product.sku == bom_in.product_sku).first()
     if not target_product:
@@ -160,7 +166,7 @@ def update_bom(id: int, bom_in: schemas.BOMCreate, db: Session = Depends(get_db)
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_bom(id: int, db: Session = Depends(get_db), current_user: models.User = Depends(verify_write)):
-    if current_user.role != "Admin":
+    if current_user.role not in ["Admin", "Co-Admin"]:
         raise HTTPException(status_code=403, detail="Creation and deletion are restricted to Admin users.")
     bom = db.query(models.BOM).filter(models.BOM.id == id).first()
     if not bom:

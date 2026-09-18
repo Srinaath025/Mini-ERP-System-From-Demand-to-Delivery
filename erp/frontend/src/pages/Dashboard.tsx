@@ -38,32 +38,23 @@ export const Dashboard: React.FC = () => {
   const fetchStats = async () => {
     try {
       setLoading(true);
-      const [salesRes, purchRes, mfgRes] = await Promise.all([
-        axios.get('/api/sales').catch(() => ({ data: [] })),
-        axios.get('/api/purchases').catch(() => ({ data: [] })),
-        axios.get('/api/manufacturing').catch(() => ({ data: [] }))
-      ]);
-
-      const sales = salesRes.data || [];
-      const purchases = purchRes.data || [];
-      const mfg = mfgRes.data || [];
-
-      // Helper function to safely check statuses, mapping backend defaults where needed
-      const countStatus = (arr: any[], ...statuses: string[]) => 
-        arr.filter(item => statuses.some(s => item.status?.toLowerCase() === s.toLowerCase())).length;
+      const res = await axios.get('/api/dashboard/stats');
+      const sales = res.data?.sales?.all || {};
+      const purchases = res.data?.purchases?.all || {};
+      const mfg = res.data?.manufacturing?.all || {};
 
       setStats({
-        salesDraft: countStatus(sales, 'Draft', 'Pending'),
-        salesConfirmed: countStatus(sales, 'Confirmed'),
-        salesDelivered: countStatus(sales, 'Delivered', 'Completed'),
+        salesDraft: (sales['Draft'] || 0) + (sales['Pending'] || 0),
+        salesConfirmed: sales['Confirmed'] || 0,
+        salesDelivered: (sales['Delivered'] || 0) + (sales['Completed'] || 0),
 
-        purchasesDraft: countStatus(purchases, 'Draft', 'Pending'),
-        purchasesConfirmed: countStatus(purchases, 'Confirmed'),
-        purchasesDelivered: countStatus(purchases, 'Received'),
+        purchasesDraft: (purchases['Draft'] || 0) + (purchases['Pending'] || 0),
+        purchasesConfirmed: purchases['Confirmed'] || 0,
+        purchasesDelivered: (purchases['Received'] || 0) + (purchases['Completed'] || 0),
 
-        mfgDraft: countStatus(mfg, 'Draft', 'Planned', 'Pending'),
-        mfgConfirmed: countStatus(mfg, 'Confirmed', 'In Progress'),
-        mfgDelivered: countStatus(mfg, 'Completed', 'Done')
+        mfgDraft: (mfg['Draft'] || 0) + (mfg['Pending'] || 0) + (mfg['Planned'] || 0),
+        mfgConfirmed: (mfg['Confirmed'] || 0) + (mfg['In Progress'] || 0),
+        mfgDelivered: (mfg['Completed'] || 0) + (mfg['Done'] || 0)
       });
     } catch (e) {
       console.error(e);
